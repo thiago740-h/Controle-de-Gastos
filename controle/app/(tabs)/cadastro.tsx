@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 export default function CadastroScreen() {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const [type, setType] = useState('despesa'); // 'receita' ou 'despesa'
   const router = useRouter();
 
   const handleSave = async () => {
@@ -27,34 +28,51 @@ export default function CadastroScreen() {
       id: String(new Date().getTime()),
       description,
       amount: parseFloat(amount.replace(',', '.')),
+      type: type, // Isso aqui é o que faz o gráfico funcionar!
       date: new Date().toLocaleDateString('pt-BR'),
     };
 
     await saveTransaction(newEntry);
-    Alert.alert("Sucesso", "Gasto salvo!");
+    Alert.alert("Sucesso", type === 'receita' ? "Salário salvo!" : "Gasto salvo!");
     
     setDescription('');
     setAmount('');
-    Keyboard.dismiss(); // Fecha o teclado antes de mudar de tela
+    setType('despesa'); // Volta ao padrão
+    Keyboard.dismiss();
     router.replace('/');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* DICA: Se o erro persistir, remova o ScrollView e o KeyboardAvoidingView 
-        temporariamente para testar, como fizemos aqui embaixo:
-      */}
       <View style={styles.inner}>
-        <Text style={styles.title}>Novo Gasto</Text>
+        <Text style={styles.title}>Novo Registro</Text>
 
         <View style={styles.form}>
+          {/* SELETOR DE TIPO (RECEITA OU DESPESA) */}
+          <Text style={styles.label}>Tipo de Registro</Text>
+          <View style={styles.typeContainer}>
+            <TouchableOpacity 
+              style={[styles.typeButton, type === 'receita' && styles.selectedIncome]} 
+              onPress={() => setType('receita')}
+            >
+              <Text style={[styles.typeText, type === 'receita' && styles.selectedText]}>Salário</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.typeButton, type === 'despesa' && styles.selectedExpense]} 
+              onPress={() => setType('despesa')}
+            >
+              <Text style={[styles.typeText, type === 'despesa' && styles.selectedText]}>Gasto</Text>
+            </TouchableOpacity>
+          </View>
+
           <Text style={styles.label}>Descrição</Text>
           <TextInput
             style={styles.input}
-            placeholder="Ex: Almoço"
+            placeholder="Ex: Salário Mensal ou Almoço"
             value={description}
-            onChangeText={(text) => setDescription(text)} // Função explícita
-            autoCorrect={false} // Evita que o corretor cause re-render
+            onChangeText={setDescription}
+            autoCorrect={false}
           />
 
           <Text style={styles.label}>Valor (R$)</Text>
@@ -62,12 +80,12 @@ export default function CadastroScreen() {
             style={styles.input}
             placeholder="0,00"
             value={amount}
-            onChangeText={(text) => setAmount(text)}
-            keyboardType="decimal-pad" // Melhor que 'numeric' em alguns casos
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
           />
 
           <TouchableOpacity style={styles.button} onPress={handleSave}>
-            <Text style={styles.buttonText}>Salvar</Text>
+            <Text style={styles.buttonText}>Confirmar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -80,7 +98,23 @@ const styles = StyleSheet.create({
   inner: { flex: 1, padding: 24, justifyContent: 'center' },
   title: { fontSize: 28, fontWeight: 'bold', color: '#4E31AA', textAlign: 'center', marginBottom: 30 },
   form: { backgroundColor: '#FFF', padding: 20, borderRadius: 15, elevation: 5 },
-  label: { fontSize: 14, fontWeight: 'bold', marginBottom: 5, color: '#333' },
+  label: { fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#333' },
+  
+  // Estilos do Seletor
+  typeContainer: { flexDirection: 'row', marginBottom: 20, gap: 10 },
+  typeButton: { 
+    flex: 1, 
+    padding: 12, 
+    borderRadius: 10, 
+    borderWidth: 1, 
+    borderColor: '#DDD', 
+    alignItems: 'center' 
+  },
+  selectedIncome: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
+  selectedExpense: { backgroundColor: '#F44336', borderColor: '#F44336' },
+  typeText: { fontWeight: 'bold', color: '#666' },
+  selectedText: { color: '#FFF' },
+
   input: { 
     backgroundColor: '#F1F3F5', 
     padding: 15, 
@@ -88,6 +122,6 @@ const styles = StyleSheet.create({
     marginBottom: 20, 
     fontSize: 16 
   },
-  button: { backgroundColor: '#4E31AA', padding: 18, borderRadius: 10, alignItems: 'center' },
+  button: { backgroundColor: '#4E31AA', padding: 18, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   buttonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 }
 });

@@ -1,146 +1,88 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, SafeAreaView } from 'react-native';
-import { useFocusEffect } from 'expo-router'; 
-import { getTransactions } from '../../src/services/transactionService';
+import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { PieChart } from 'react-native-chart-kit';
+import { getTransactions, getBalance } from '../../src/services/transactionService';
 
 export default function HomeScreen() {
-  const [transactions, setTransactions] = useState([]);
+  const [totals, setTotals] = useState({ income: 0, expense: 0, total: 0 });
 
-  // Atualiza a lista toda vez que o usuário volta para esta aba
   useFocusEffect(
     useCallback(() => {
-      let isActive = true;
-
       async function loadData() {
-        try {
-          const data = await getTransactions();
-          if (isActive) {
-            // Ordena para que o gasto mais recente apareça primeiro
-            setTransactions(data.reverse());
-          }
-        } catch (error) {
-          console.error("Erro ao carregar transações:", error);
-        }
+        const res = await getBalance();
+        setTotals(res);
       }
-
       loadData();
-
-      return () => {
-        isActive = false;
-      };
     }, [])
   );
 
+  const chartData = [
+    {
+      name: 'Disponível',
+      amount: totals.total > 0 ? totals.total : 0,
+      color: '#4CAF50',
+      legendFontColor: '#7F7F7F',
+      legendFontSize: 12,
+    },
+    {
+      name: 'Gastos',
+      amount: totals.expense,
+      color: '#F44336',
+      legendFontColor: '#7F7F7F',
+      legendFontSize: 12,
+    },
+  ];
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Minhas Finanças</Text>
-        <Text style={styles.subtitle}>Histórico de gastos</Text>
+    <ScrollView style={styles.container}>
+      <Text style={styles.title}>Resumo Financeiro</Text>
+
+      {/* Cartões de Saldo */}
+      <View style={styles.row}>
+        <View style={[styles.card, { borderLeftColor: '#4CAF50', borderLeftWidth: 5 }]}>
+          <Text style={styles.label}>Salário/Renda</Text>
+          <Text style={styles.incomeValue}>R$ {totals.income.toFixed(2)}</Text>
+        </View>
+        <View style={[styles.card, { borderLeftColor: '#F44336', borderLeftWidth: 5 }]}>
+          <Text style={styles.label}>Gastos</Text>
+          <Text style={styles.expenseValue}>R$ {totals.expense.toFixed(2)}</Text>
+        </View>
       </View>
-      
-      <FlatList
-        data={transactions}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.infoContainer}>
-              <Text style={styles.description}>{item.description}</Text>
-              <Text style={styles.date}>{item.date}</Text>
-            </View>
-            <View style={styles.amountContainer}>
-              <Text style={styles.amount}>
-                R$ {Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </Text>
-            </View>
-          </View>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Nenhum gasto registrado ainda.</Text>
-            <Text style={styles.emptySubtext}>Toque em 'Novo Gasto' para começar.</Text>
-          </View>
-        }
-      />
-    </SafeAreaView>
+
+      <View style={styles.balanceCard}>
+        <Text style={styles.label}>Saldo Atual</Text>
+        <Text style={styles.totalValue}>R$ {totals.total.toFixed(2)}</Text>
+      </View>
+
+      {/* Gráfico */}
+      <Text style={styles.subtitle}>Distribuição</Text>
+      <View style={styles.chartContainer}>
+        <PieChart
+          data={chartData}
+          width={Dimensions.get('window').width - 40}
+          height={200}
+          chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
+          accessor={"amount"}
+          backgroundColor={"transparent"}
+          paddingLeft={"15"}
+          absolute // Mostra os valores reais no gráfico
+        />
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F8F9FA' 
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 20,
-    backgroundColor: '#FFF',
-  },
-  title: { 
-    fontSize: 28, 
-    fontWeight: 'bold', 
-    color: '#4E31AA' 
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  listContent: { 
-    padding: 20,
-    paddingBottom: 100 
-  },
-  card: { 
-    backgroundColor: '#FFF', 
-    padding: 20, 
-    borderRadius: 16, 
-    flexDirection: 'row', 
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    // Sombra suave
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-  },
-  infoContainer: {
-    flex: 1,
-  },
-  description: { 
-    fontSize: 16, 
-    fontWeight: '700', 
-    color: '#2D3436' 
-  },
-  date: { 
-    fontSize: 12, 
-    color: '#A0A0A0', 
-    marginTop: 6 
-  },
-  amountContainer: {
-    marginLeft: 10,
-  },
-  amount: { 
-    fontSize: 16, 
-    fontWeight: 'bold', 
-    color: '#E74C3C' // Vermelho para despesa
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 100,
-  },
-  emptyText: { 
-    fontSize: 18, 
-    color: '#B2BEC3', 
-    fontWeight: '600' 
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#DFE6E9',
-    marginTop: 8,
-  }
+  container: { flex: 1, backgroundColor: '#F5F5F5', padding: 20, paddingTop: 60 },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#4E31AA', marginBottom: 20 },
+  subtitle: { fontSize: 18, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+  card: { backgroundColor: '#FFF', padding: 15, borderRadius: 10, width: '48%', elevation: 3 },
+  balanceCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 10, alignItems: 'center', elevation: 3 },
+  label: { fontSize: 12, color: '#666', textTransform: 'uppercase' },
+  incomeValue: { fontSize: 18, fontWeight: 'bold', color: '#4CAF50' },
+  expenseValue: { fontSize: 18, fontWeight: 'bold', color: '#F44336' },
+  totalValue: { fontSize: 26, fontWeight: 'bold', color: '#4E31AA' },
+  chartContainer: { backgroundColor: '#FFF', borderRadius: 15, padding: 10, elevation: 3, marginBottom: 50 }
 });
