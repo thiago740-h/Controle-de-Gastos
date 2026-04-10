@@ -27,22 +27,24 @@ O **MyFinance** é um aplicativo móvel desenvolvido para ajudar no controle de 
 
 ---
 
-## 🧠 Como o App Funciona
+## ⚙️ Arquitetura e Performance
 
-### 📂 Arquitetura de Dados (`transactionService.js`)
-A lógica de negócio foi centralizada em um serviço dedicado para garantir que as telas apenas exibam a informação:
+### 📂 Camada de Serviço (`transactionService.js`)
+A lógica de negócio foi centralizada para garantir que as telas apenas exibam a informação:
 * **Filtro de ID Rigoroso:** Implementamos uma limpeza de strings e conversão de tipos para garantir que a exclusão de itens seja 100% precisa.
-* **Cálculo de Totais:** O serviço percorre o array de transações e utiliza o método `.reduce()` para somar receitas e despesas de forma performática.
-* **Ajuste de Sincronia:** Adicionamos pequenas pausas (delays) e resoluções de promessas para garantir que o banco local termine de escrever antes da interface ser recarregada.
+* **Cálculo de Totais:** O serviço utiliza o método `.reduce()` para somar receitas e despesas de forma performática.
+* **Segurança de Tipagem:** Todos os IDs são convertidos para `String` e tratados com `.trim()`, evitando falhas de comparação no banco local.
 
-### 📱 Interface (UI/UX)
-* **Dashboard:** Utiliza o hook `useFocusEffect` para atualizar os gráficos sempre que o usuário navega entre as abas.
-* **Exclusão Otimista:** Ao deletar um item, o app atualiza o estado da tela instantaneamente enquanto processa a exclusão no "disco", garantindo uma experiência sem travamentos.
+### 📱 Funcionamento da HomeScreen
+A tela principal utiliza estratégias avançadas para uma experiência de usuário (UX) superior:
+
+* **Sincronização com `useFocusEffect`:** Garante que os dados sejam revalidados do banco toda vez que a tela ganha foco, mantendo o gráfico sempre atualizado.
+* **Exclusão Otimista (Optimistic UI):** Ao deletar um registro, o item é removido do estado visual instantaneamente. Isso elimina o "delay" de resposta do dispositivo, dando a sensação de um app ultra rápido.
+* **Tratamento de Dados para Gráficos:** Implementamos travas de renderização (como valores mínimos de `0.01` para saldos zerados) para evitar erros matemáticos na biblioteca de gráficos.
 
 ---
 
 ## 📦 Instalação e Uso
-
 1. **Clonar o projeto:**
    ```bash
    git clone [https://github.com/thiago740-h/Controle-de-Gastos](https://github.com/thiago740-h/Controle-de-Gastos)

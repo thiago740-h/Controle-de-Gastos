@@ -9,44 +9,59 @@ export default function HomeScreen() {
   const [transactions, setTransactions] = useState([]);
   const [totals, setTotals] = useState({ income: 0, expense: 0, total: 0 });
 
+  // Função para carregar dados do AsyncStorage
   const loadData = async () => {
-    const trans = await getTransactions();
-    const bal = await getBalance();
-    // Usamos o slice().reverse() para não mutar o array original acidentalmente
-    setTransactions(trans.slice().reverse()); 
-    setTotals(bal);
+    try {
+      const trans = await getTransactions();
+      const bal = await getBalance();
+      
+      // Garantimos que trans seja um array e invertemos para mostrar os novos primeiro
+      const dataArray = Array.isArray(trans) ? trans : [];
+      setTransactions([...dataArray].reverse()); 
+      setTotals(bal);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+    }
   };
 
+  // Atualiza a tela sempre que o usuário entra nela
   useFocusEffect(
     useCallback(() => {
       loadData();
     }, [])
   );
 
-  // --- FUNÇÃO DE APAGAR BLINDADA ---
+  // --- FUNÇÃO DE APAGAR REFORÇADA ---
   const handleDelete = (id) => {
+    // Forçamos o ID a ser String para garantir a comparação no filtro
+    const stringId = String(id).trim();
+
     Alert.alert("Excluir", "Deseja apagar este registro?", [
       { text: "Cancelar", style: "cancel" },
       { 
         text: "Excluir", 
         style: "destructive", 
         onPress: async () => {
-          // 1. Apaga no banco
-          await deleteTransaction(id); 
-          
-          // 2. FILTRO MANUAL: Remove do estado local IMEDIATAMENTE
-          // Isso garante que o item suma da lista mesmo se o loadData demorar
-          setTransactions(current => current.filter(t => t.id !== id));
-          
-          // 3. Atualiza os totais do gráfico
-          const newBal = await getBalance();
-          setTotals(newBal);
+          try {
+            // 1. Remove do estado local IMEDIATAMENTE (Interface rápida)
+            setTransactions(current => current.filter(t => String(t.id).trim() !== stringId));
+
+            // 2. Apaga no banco de dados (AsyncStorage)
+            await deleteTransaction(stringId); 
+            
+            // 3. Atualiza os totais do gráfico após a exclusão
+            const newBal = await getBalance();
+            setTotals(newBal);
+          } catch (error) {
+            Alert.alert("Erro", "Não foi possível apagar o item.");
+            loadData(); // Recarrega os dados caso algo dê errado
+          }
         } 
       }
     ]);
   };
 
-  // --- FUNÇÃO DE RESET BLINDADA ---
+  // --- FUNÇÃO DE RESET TOTAL ---
   const handleReset = () => {
     Alert.alert("Limpar Tudo", "Isso apagará todos os seus dados permanentemente.", [
       { text: "Cancelar" },
@@ -55,8 +70,8 @@ export default function HomeScreen() {
         style: "destructive", 
         onPress: async () => {
           await clearAllData();
-          setTransactions([]); // Zera a lista na tela na hora
-          setTotals({ income: 0, expense: 0, total: 0 }); // Zera o gráfico
+          setTransactions([]);
+          setTotals({ income: 0, expense: 0, total: 0 });
         } 
       }
     ]);
@@ -65,7 +80,7 @@ export default function HomeScreen() {
   const chartData = [
     {
       name: 'Saldo',
-      amount: totals.total > 0 ? totals.total : 0.01, // 0.01 evita erro de render do gráfico se estiver zerado
+      amount: totals.total > 0 ? totals.total : 0.01, // Evita erro visual se saldo for 0
       color: '#4CAF50',
       legendFontColor: '#7F7F7F',
       legendFontSize: 12,
@@ -138,7 +153,11 @@ export default function HomeScreen() {
               <Text style={[styles.itemAmount, { color: item.type === 'receita' ? '#4CAF50' : '#F44336' }]}>
                 {item.type === 'receita' ? '+' : '-'} R$ {item.amount.toFixed(2)}
               </Text>
-              <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>
+              <TouchableOpacity 
+                onPress={() => handleDelete(item.id)} 
+                style={styles.deleteBtn}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Aumenta área de clique
+              >
                 <FontAwesome name="trash" size={18} color="#F44336" />
               </TouchableOpacity>
             </View>

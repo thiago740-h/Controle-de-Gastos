@@ -6,10 +6,13 @@ const STORAGE_KEY = '@finance_data';
 export const getTransactions = async () => {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEY);
-    const parsed = data ? JSON.parse(data) : [];
-    // Garante que sempre retornamos um Array
-    return Array.isArray(parsed) ? parsed : [];
+    if (!data) return [];
+    
+    const parsed = JSON.parse(data);
+    // Forçamos que cada item vindo do banco tenha um ID em string
+    return Array.isArray(parsed) ? parsed.map(t => ({ ...t, id: String(t.id) })) : [];
   } catch (e) {
+    console.error("Erro ao buscar dados", e);
     return [];
   }
 };
@@ -18,12 +21,21 @@ export const getTransactions = async () => {
 export const saveTransaction = async (value) => {
   try {
     const existingData = await getTransactions(); 
-    const db = [...existingData, value];
+    
+    // Normalização total do dado antes de salvar
+    const newItem = {
+      ...value,
+      id: String(value.id).trim(), // ID sempre String e sem espaços
+      amount: Number(value.amount) || 0, // Garante que é número
+      type: String(value.type).toLowerCase() // Garante minúsculo para o filtro
+    };
+    
+    const db = [...existingData, newItem];
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-    // Força o sistema a entender que o salvamento acabou
-    return Promise.resolve();
+    return true;
   } catch (e) {
     console.error("Erro ao salvar", e);
+    return false;
   }
 };
 
@@ -34,11 +46,11 @@ export const getBalance = async () => {
     
     const income = transactions
       .filter(t => t.type === 'receita')
-      .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
     
     const expense = transactions
       .filter(t => t.type === 'despesa')
-      .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
     return {
       income,
@@ -50,22 +62,22 @@ export const getBalance = async () => {
   }
 };
 
-// 4. APAGAR UMA ÚNICA TRANSAÇÃO (A versão mais agressiva possível)
+// 4. APAGAR UMA ÚNICA TRANSAÇÃO (Ajuste Crítico)
 export const deleteTransaction = async (id) => {
   try {
     const transactions = await getTransactions();
+    const idParaApagar = String(id).trim();
+
+    // Filtro usando comparação estrita após normalização
+    const filtered = transactions.filter(t => String(t.id).trim() !== idParaApagar);
     
-    // Convertemos os dois IDs para String e limpamos espaços vazios (trim)
-    // Isso evita que "123 " seja diferente de "123"
-    const filtered = transactions.filter(t => {
-      return String(t.id).trim() !== String(id).trim();
-    });
-    
-    // Sobrescreve a lista no storage
+    // IMPORTANTE: Se o tamanho for igual, significa que ele não achou o ID
+    if (filtered.length === transactions.length) {
+      console.warn("Aviso: ID não encontrado no banco para deletar:", idParaApagar);
+    }
+
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-    
-    // Pequena pausa para garantir que o sistema operacional processou a escrita
-    return new Promise((resolve) => setTimeout(resolve, 50));
+    return true;
   } catch (e) {
     console.error("Erro ao apagar item", e);
     return false;
@@ -75,9 +87,11 @@ export const deleteTransaction = async (id) => {
 // 5. LIMPAR TUDO
 export const clearAllData = async () => {
   try {
+    // Melhor usar removeItem para não apagar configurações de outros plugins do Expo
     await AsyncStorage.removeItem(STORAGE_KEY);
     return true;
   } catch (e) {
+    console.error("Erro ao limpar dados", e);
     return false;
   }
 };
