@@ -9,12 +9,11 @@ export default function HomeScreen() {
   const [transactions, setTransactions] = useState([]);
   const [totals, setTotals] = useState({ income: 0, expense: 0, total: 0 });
 
-  // Função centralizada para carregar todos os dados
   const loadData = async () => {
     const trans = await getTransactions();
     const bal = await getBalance();
-    // Inverte a lista para mostrar os mais recentes no topo
-    setTransactions([...trans].reverse()); 
+    // Usamos o slice().reverse() para não mutar o array original acidentalmente
+    setTransactions(trans.slice().reverse()); 
     setTotals(bal);
   };
 
@@ -24,30 +23,40 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // AJUSTE: Tornando a função assíncrona para esperar o banco deletar
-  const handleDelete = (id: string) => {
+  // --- FUNÇÃO DE APAGAR BLINDADA ---
+  const handleDelete = (id) => {
     Alert.alert("Excluir", "Deseja apagar este registro?", [
       { text: "Cancelar", style: "cancel" },
       { 
         text: "Excluir", 
         style: "destructive", 
         onPress: async () => {
-          await deleteTransaction(id); // Espera deletar no AsyncStorage
-          await loadData(); // Espera recarregar os dados novos
+          // 1. Apaga no banco
+          await deleteTransaction(id); 
+          
+          // 2. FILTRO MANUAL: Remove do estado local IMEDIATAMENTE
+          // Isso garante que o item suma da lista mesmo se o loadData demorar
+          setTransactions(current => current.filter(t => t.id !== id));
+          
+          // 3. Atualiza os totais do gráfico
+          const newBal = await getBalance();
+          setTotals(newBal);
         } 
       }
     ]);
   };
 
+  // --- FUNÇÃO DE RESET BLINDADA ---
   const handleReset = () => {
-    Alert.alert("Limpar Tudo", "Isso apagará todos os seus dados permanentemente. Continuar?", [
+    Alert.alert("Limpar Tudo", "Isso apagará todos os seus dados permanentemente.", [
       { text: "Cancelar" },
       { 
         text: "Limpar", 
         style: "destructive", 
         onPress: async () => {
           await clearAllData();
-          await loadData();
+          setTransactions([]); // Zera a lista na tela na hora
+          setTotals({ income: 0, expense: 0, total: 0 }); // Zera o gráfico
         } 
       }
     ]);
@@ -56,14 +65,14 @@ export default function HomeScreen() {
   const chartData = [
     {
       name: 'Saldo',
-      amount: totals.total > 0 ? totals.total : 0,
+      amount: totals.total > 0 ? totals.total : 0.01, // 0.01 evita erro de render do gráfico se estiver zerado
       color: '#4CAF50',
       legendFontColor: '#7F7F7F',
       legendFontSize: 12,
     },
     {
       name: 'Gastos',
-      amount: totals.expense,
+      amount: totals.expense > 0 ? totals.expense : 0,
       color: '#F44336',
       legendFontColor: '#7F7F7F',
       legendFontSize: 12,
@@ -74,12 +83,11 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Resumo Financeiro</Text>
-        <TouchableOpacity onPress={handleReset} style={styles.resetBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={handleReset} style={styles.resetBtn}>
           <FontAwesome name="refresh" size={20} color="#4E31AA" />
         </TouchableOpacity>
       </View>
 
-      {/* Cartões de Saldo */}
       <View style={styles.row}>
         <View style={[styles.card, { borderLeftColor: '#4CAF50', borderLeftWidth: 5 }]}>
           <Text style={styles.label}>Salário/Renda</Text>
@@ -98,7 +106,6 @@ export default function HomeScreen() {
         </Text>
       </View>
 
-      {/* Gráfico */}
       {(totals.income > 0 || totals.expense > 0) && (
         <>
           <Text style={styles.subtitle}>Distribuição</Text>
@@ -117,7 +124,6 @@ export default function HomeScreen() {
         </>
       )}
 
-      {/* Lista de Histórico */}
       <Text style={styles.subtitle}>Últimos Registros</Text>
       {transactions.length === 0 ? (
         <Text style={styles.emptyText}>Nenhum registro encontrado.</Text>
@@ -132,9 +138,8 @@ export default function HomeScreen() {
               <Text style={[styles.itemAmount, { color: item.type === 'receita' ? '#4CAF50' : '#F44336' }]}>
                 {item.type === 'receita' ? '+' : '-'} R$ {item.amount.toFixed(2)}
               </Text>
-              {/* Ícone de lixeira para facilitar a identificação */}
               <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>
-                <FontAwesome name="trash-o" size={18} color="#F44336" />
+                <FontAwesome name="trash" size={18} color="#F44336" />
               </TouchableOpacity>
             </View>
           </View>
@@ -159,9 +164,8 @@ const styles = StyleSheet.create({
   incomeValue: { fontSize: 16, fontWeight: 'bold', color: '#4CAF50', marginTop: 5 },
   expenseValue: { fontSize: 16, fontWeight: 'bold', color: '#F44336', marginTop: 5 },
   totalValue: { fontSize: 28, fontWeight: 'bold', marginTop: 5 },
-  chartContainer: { backgroundColor: '#FFF', borderRadius: 15, padding: 10, elevation: 2 },
+  chartContainer: { backgroundColor: '#FFF', borderRadius: 15, padding: 10, elevation: 2, alignItems: 'center' },
   emptyText: { textAlign: 'center', color: '#999', marginTop: 20, fontStyle: 'italic' },
-  
   itemCard: { 
     backgroundColor: '#FFF', padding: 15, borderRadius: 12, 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 

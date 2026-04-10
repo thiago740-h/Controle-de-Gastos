@@ -6,9 +6,10 @@ const STORAGE_KEY = '@finance_data';
 export const getTransactions = async () => {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    const parsed = data ? JSON.parse(data) : [];
+    // Garante que sempre retornamos um Array
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    console.error("Erro ao buscar dados", e);
     return [];
   }
 };
@@ -19,19 +20,21 @@ export const saveTransaction = async (value) => {
     const existingData = await getTransactions(); 
     const db = [...existingData, value];
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    // Força o sistema a entender que o salvamento acabou
+    return Promise.resolve();
   } catch (e) {
     console.error("Erro ao salvar", e);
   }
 };
 
-// 3. CALCULAR BALANÇO PARA O GRÁFICO
+// 3. CALCULAR BALANÇO
 export const getBalance = async () => {
   try {
     const transactions = await getTransactions();
     
     const income = transactions
       .filter(t => t.type === 'receita')
-      .reduce((acc, t) => acc + Number(t.amount || 0), 0); // Proteção contra valores nulos
+      .reduce((acc, t) => acc + Number(t.amount || 0), 0);
     
     const expense = transactions
       .filter(t => t.type === 'despesa')
@@ -47,17 +50,22 @@ export const getBalance = async () => {
   }
 };
 
-// 4. APAGAR UMA ÚNICA TRANSAÇÃO (Ajustado para ser mais rigoroso)
+// 4. APAGAR UMA ÚNICA TRANSAÇÃO (A versão mais agressiva possível)
 export const deleteTransaction = async (id) => {
   try {
     const transactions = await getTransactions();
     
-    // Usamos String(id) para garantir que a comparação funcione 
-    // mesmo que um ID seja número e o outro texto
-    const filtered = transactions.filter(t => String(t.id) !== String(id));
+    // Convertemos os dois IDs para String e limpamos espaços vazios (trim)
+    // Isso evita que "123 " seja diferente de "123"
+    const filtered = transactions.filter(t => {
+      return String(t.id).trim() !== String(id).trim();
+    });
     
+    // Sobrescreve a lista no storage
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-    return true; // Retorna true para confirmar que limpou no banco
+    
+    // Pequena pausa para garantir que o sistema operacional processou a escrita
+    return new Promise((resolve) => setTimeout(resolve, 50));
   } catch (e) {
     console.error("Erro ao apagar item", e);
     return false;
@@ -70,7 +78,6 @@ export const clearAllData = async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     return true;
   } catch (e) {
-    console.error("Erro ao limpar dados", e);
     return false;
   }
 };
